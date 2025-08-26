@@ -27,7 +27,6 @@ train_dataset = torchvision.datasets.CIFAR10(
 train_loader = torch.utils.data.DataLoader(
     train_dataset, batch_size=BATCH_SIZE, shuffle=True
 )
-print("Data loader is ready. 👍")
 
 class SwinIRTestWrapper(nn.Module):
     def __init__(self, in_channels=3, embed_dim=64, img_size=32):
@@ -72,7 +71,7 @@ print("\n--- Tensor Shapes ---")
 print(f"Input shape:  {images.shape}")
 print(f"Output shape: {output.shape}")
 assert images.shape == output.shape, "Input and output shapes do not match!"
-print("Shapes match as expected. ✅")
+print("Shapes match as expected.")
 
 def imshow(tensor, title):
     tensor = tensor.cpu().detach().clamp(0, 1)

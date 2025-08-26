@@ -24,7 +24,6 @@ class QueryDETR(nn.Module):
         B, C, H, W = proj_features.shape
         memory = proj_features.flatten(2).permute(0, 2, 1)
         
-        # Dynamic positional embedding
         pos = self._get_pos_embed(B, H, W, proj_features.device)
         query_embed = self.query_embed.weight.unsqueeze(0).repeat(B, 1, 1)
         decoder_output = self.transformer_decoder(tgt=query_embed, memory=memory + pos)

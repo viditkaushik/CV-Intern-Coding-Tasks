@@ -2,24 +2,19 @@ import torch
 import torch.nn as nn
 from timm.models.layers import to_2tuple
 
-# --- Helper Functions (Unchanged) ---
 def window_partition(x, window_size):
-    """ Partitions a feature map into non-overlapping windows. """
     B, H, W, C = x.shape
     x = x.view(B, H // window_size, window_size, W // window_size, window_size, C)
     windows = x.permute(0, 1, 3, 2, 4, 5).contiguous().view(-1, window_size, window_size, C)
     return windows
 
 def window_reverse(windows, window_size, H, W):
-    """ Merges windows back to the original feature map shape. """
     B = int(windows.shape[0] / (H * W / window_size / window_size))
     x = windows.view(B, H // window_size, W // window_size, window_size, window_size, -1)
     x = x.permute(0, 1, 3, 2, 4, 5).contiguous().view(B, H, W, -1)
     return x
 
-# --- Core Modules ---
 class Mlp(nn.Module):
-    """ Standard Multi-Layer Perceptron. """
     def __init__(self, in_features, hidden_features=None, act_layer=nn.GELU):
         super().__init__()
         hidden_features = hidden_features or in_features
@@ -31,7 +26,6 @@ class Mlp(nn.Module):
         return self.fc2(self.act(self.fc1(x)))
 
 class WindowAttention(nn.Module):
-    """ Window-based Multi-Head Self-Attention (W-MSA). """
     def __init__(self, dim, window_size, num_heads):
         super().__init__()
         self.dim = dim
@@ -41,12 +35,10 @@ class WindowAttention(nn.Module):
 
         self.qkv = nn.Linear(dim, dim * 3)
         self.proj = nn.Linear(dim, dim)
-        
-        # Define and register the relative position bias table and index
+
         self._setup_relative_positional_bias()
         
     def _setup_relative_positional_bias(self):
-        """ Abstracted logic for creating the relative position bias. """
         table_size = (2 * self.window_size[0] - 1) * (2 * self.window_size[1] - 1)
         self.relative_position_bias_table = nn.Parameter(torch.zeros(table_size, self.num_heads))
         
@@ -73,12 +65,10 @@ class WindowAttention(nn.Module):
         q = q * self.scale
         attn = (q @ k.transpose(-2, -1))
 
-        # Add relative position bias
         bias = self.relative_position_bias_table[self.relative_position_index.view(-1)]
         bias = bias.view(N, N, -1).permute(2, 0, 1).contiguous()
         attn = attn + bias.unsqueeze(0)
 
-        # Apply mask if provided
         if mask is not None:
             nW = mask.shape[0]
             attn = attn.view(B_ // nW, nW, self.num_heads, N, N) + mask.unsqueeze(1).unsqueeze(0)
@@ -89,7 +79,6 @@ class WindowAttention(nn.Module):
         return self.proj(x)
 
 class SwinIRBlock(nn.Module):
-    """ The main SwinIR Block. """
     def __init__(self, dim, input_resolution, num_heads, window_size=8, shift_size=0, mlp_ratio=4.):
         super().__init__()
         self.input_resolution = input_resolution
@@ -105,12 +94,10 @@ class SwinIRBlock(nn.Module):
         self.norm2 = nn.LayerNorm(dim)
         self.mlp = Mlp(in_features=dim, hidden_features=int(dim * mlp_ratio))
         
-        # Create and register the attention mask if shifting
         self.attn_mask = self._create_attention_mask() if self.shift_size > 0 else None
         self.register_buffer("attn_mask_buffer", self.attn_mask, persistent=False)
     
     def _create_attention_mask(self):
-        """ Abstracted logic for creating the attention mask for SW-MSA. """
         H, W = self.input_resolution
         img_mask = torch.zeros((1, H, W, 1))
         h_slices = (slice(0, -self.window_size), slice(-self.window_size, -self.shift_size), slice(-self.shift_size, None))
@@ -134,22 +121,18 @@ class SwinIRBlock(nn.Module):
 
         x = self.norm1(x).view(B, H, W, C)
 
-        # Cyclic shift
         if self.shift_size > 0:
             x = torch.roll(x, shifts=(-self.shift_size, -self.shift_size), dims=(1, 2))
 
-        # Window partitioning, attention, and merging
         x_windows = window_partition(x, self.window_size).view(-1, self.window_size**2, C)
         attn_windows = self.attn(x_windows, mask=self.attn_mask)
         x = window_reverse(attn_windows.view(-1, self.window_size, self.window_size, C), self.window_size, H, W)
 
-        # Reverse cyclic shift
         if self.shift_size > 0:
             x = torch.roll(x, shifts=(self.shift_size, self.shift_size), dims=(1, 2))
         
         x = x.view(B, L, C)
         
-        # Residual connections
         x = shortcut + x
         x = x + self.mlp(self.norm2(x))
         return x

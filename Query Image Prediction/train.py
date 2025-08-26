@@ -1,4 +1,3 @@
-# train.py
 import torch
 import torch.nn as nn
 import torch.optim as optim
@@ -15,7 +14,6 @@ import json
 from model import QueryDETR
 
 class ConstructionWorkersDataset(Dataset):
-    """Custom PyTorch Dataset for construction workers object detection data."""
     def __init__(self, data_dir="train", transform=None):
         import os
         
@@ -62,11 +60,9 @@ class ConstructionWorkersDataset(Dataset):
         return image, target
 
 def collate_fn(batch):
-    """Custom collate function to handle varying numbers of objects."""
     return tuple(zip(*batch))
 
 def plot_losses(train_losses, val_losses, epochs):
-    """Plots training and validation loss curves."""
     plt.figure(figsize=(10, 5))
     plt.plot(range(1, epochs + 1), train_losses, label='Training Loss')
     plt.plot(range(1, epochs + 1), val_losses, label='Validation Loss')
@@ -74,12 +70,10 @@ def plot_losses(train_losses, val_losses, epochs):
     plt.legend(); plt.grid(True); plt.savefig('loss_curves.png'); plt.show()
 
 def box_cxcywh_to_xyxy(x):
-    """Converts bbox from [cx, cy, w, h] to [x1, y1, x2, y2]."""
     x_c, y_c, w, h = x.unbind(-1)
     return torch.stack([x_c - 0.5 * w, y_c - 0.5 * h, x_c + 0.5 * w, y_c + 0.5 * h], dim=-1)
 
 def visualize_predictions(image, predictions, targets, idx_to_class, confidence_threshold=0.7):
-    """Visualizes model predictions on a single image."""
     img_np = image.permute(1, 2, 0).cpu().numpy()
     mean, std = np.array([0.485, 0.456, 0.406]), np.array([0.229, 0.224, 0.225])
     img_np = std * img_np + mean # Un-normalize
@@ -88,7 +82,6 @@ def visualize_predictions(image, predictions, targets, idx_to_class, confidence_
 
     fig, ax = plt.subplots(1, figsize=(12, 9)); ax.imshow(img_np)
 
-    # Plot Ground Truth
     for box, label in zip(targets['boxes'], targets['labels']):
         box_unnorm = box * torch.tensor([img_w, img_h, img_w, img_h])
         x1, y1, x2, y2 = box_cxcywh_to_xyxy(box_unnorm.unsqueeze(0)).squeeze(0)
@@ -96,7 +89,6 @@ def visualize_predictions(image, predictions, targets, idx_to_class, confidence_
         ax.add_patch(rect)
         plt.text(x1, y1, f"GT: {idx_to_class[label.item()]}", color='white', backgroundcolor='green', fontsize=8)
 
-    # Plot Predictions
     probas = predictions['pred_logits'].softmax(-1)[0, :, :-1]
     keep = probas.max(-1).values > confidence_threshold
     
@@ -209,14 +201,12 @@ if __name__ == "__main__":
         
         print(f"Epoch {epoch+1}/{EPOCHS} -> Train Loss: {train_losses[-1]:.4f}, Val Loss: {val_losses[-1]:.4f}")
 
-    # Plot training/validation loss curves
     plot_losses(train_losses, val_losses, EPOCHS)
-    
-    # Show sample detections on validation images
+
     print("Showing sample detections...")
     model.eval()
     with torch.no_grad():
-        for i in range(3):  # Show 3 sample detections
+        for i in range(3):
             img, tgt = val_dataset[np.random.randint(len(val_dataset))]
             outputs = model(img.unsqueeze(0).to(DEVICE))
             visualize_predictions(img, outputs, tgt, train_dataset.idx_to_class)
